@@ -1,131 +1,136 @@
+# Refactoring SOLID — Product Manager
 
-## TP : Refactoring SOLID d'un Système de Gestion de Produits
+Ce document contient le code refactorisé (structure de dépôt), un README expliquant les violations SOLID identifiées, et les fichiers Python correspondants.
 
-### Contexte
+---
 
-Vous disposez d'un petit système de gestion de produits. Actuellement, il permet de créer, consulter, modifier et supprimer des produits. Le code, bien que fonctionnel, a été développé rapidement et présente des signes de rigidité et de fragilité, rendant toute évolution complexe.
+## Arborescence proposée
 
-### Objectif du TP
+```
+product_manager/
+├─ __init__.py
+├─ models.py
+├─ repository.py
+├─ interfaces.py
+├─ validators.py
+├─ services/
+│  ├─ __init__.py
+│  ├─ creator.py
+│  ├─ retriever.py
+│  ├─ updater.py
+│  ├─ deleter.py
+│  ├─ searcher.py
+│  └─ facade.py
+tests/
+├─ test_product_manager.py
+README.md
+```
 
-L'objectif est de refactoriser ce code pour qu'il respecte les principes SOLID. Vous devrez identifier les violations existantes, appliquer les principes pour les corriger, puis implémenter une nouvelle fonctionnalité de recherche par catégorie et prix maximum en vous appuyant sur votre code refactorisé.
+---
 
-### Le Code Existant (Point de Départ)
+## README.md
 
-Le codebase initial ci-dessous contient les éléments suivants :
+```
+# TP — Refactoring SOLID d'un Système de Gestion de Produits
 
-*   Une classe `Product` : Représente un produit avec les propriétés `Id`, `Name`, `Description`, `Price`, `Category`.
-*   Une classe `ProductService` : C'est le cœur monolithique de l'application. Elle gère :
-    *   Les opérations CRUD (Create, Read, Update, Delete) pour les produits.
-    *   La validation des données des produits.
-    *   L'interaction directe avec un mécanisme de persistance en mémoire, (ce pourrait être un fichier CSV, ou des appels directs à une base de données simplifiée.
-*   Une classe `ProductRepository` : Gère la persistance des produits, souvent directement couplée au `ProductService`.
+## Résumé
+Refactorisation d'un petit système de gestion de produits afin de respecter les principes SOLID. Ajout d'une fonctionnalité : recherche par catégorie et prix maximum.
 
-**Observations initiales probables (sans être exhaustif) :**
+## Violations SOLID identifiées (code initial)
 
-*   Le `ProductService` est volumineux et contient de nombreuses responsabilités.
-*   Les dépendances sont souvent directes (par exemple, `ProductService` instancie directement `ProductRepository`).
-*   L'ajout d'un nouveau type de produit ou d'une nouvelle règle de validation pourrait nécessiter des modifications dans plusieurs endroits du `ProductService`.
+- **SRP (Single Responsibility Principle)**: `ProductService` gère trop de responsabilités — validation, logique CRUD et persistance.
+- **OCP (Open/Closed Principle)**: `ProductService` est difficile à étendre (nouvelle validation ou nouvelle source de données demande de modifier la classe).
+- **DIP (Dependency Inversion Principle)**: `ProductService` instancie directement `ProductRepository` — dépendance vers une implémentation concrète.
+- **ISP (Interface Segregation Principle)**: `ProductRepository` expose une API unique. Après refactor, on découpe en interfaces lecteurs/écrivains si nécessaire.
+- **LSP (Liskov Substitution Principle)**: Pas de hiérarchie compliquée dans l'existant, mais le refactor s'assure que les abstractions peuvent être substituées sans surprise.
 
-### Les Étapes du TP
+## Principales modifications
 
-#### Étape 1 : Analyse et Identification des Violations
+1. **Séparation des responsabilités**
+   - Création de classes spécialisées: `ProductCreator`, `ProductRetriever`, `ProductUpdater`, `ProductDeleter`, `ProductSearcher`.
+   - `ProductValidator` pour la logique de validation.
 
-1.  **Exploration du Code :** Parcourez le code fourni. Comprenez son fonctionnement actuel et identifiez les différentes responsabilités assumées par chaque classe.
-2.  **Identification des Violations SOLID :**
-    *   Pour chaque principe SOLID (SRP, OCP, LSP, ISP, DIP), identifiez les endroits où le code actuel ne le respecte pas.
-    *   Documentez brièvement vos observations : quelle classe viole quel principe et pourquoi.
-    *   **Conseil IA :** Si vous utilisez l'IA pour vous aider à identifier des suggestions de refactoring, demandez-lui d'analyser des extraits de code spécifiques et de pointer les violations SOLID potentielles. Soyez critique face à ses propositions et comprenez le "pourquoi" derrière chaque suggestion.
+2. **AbstractionsP**
+   - Introduction d'interfaces `IProductReader` et `IProductWriter` (regroupées aussi dans `IProductRepository` si besoin).
+   - Les services dépendent d'abstractions (interfaces) injectées via constructeur.
 
-#### Étape 2 : Application du Principe de Responsabilité Unique (SRP)
+3. **ISP**
+   - Les interfaces sont fines : lecture/écriture séparées si un client n'a besoin que d'une partie.
 
-1.  **Décomposition du `ProductService` :** Le `ProductService` est probablement le candidat principal pour le SRP.
-    *   Séparez les responsabilités : création, lecture, mise à jour, suppression, validation, etc.
-    *   Créez de nouvelles classes ou modules, chacun avec une seule raison de changer. Par exemple :
-        *   `ProductValidator` (ou une interface `IProductValidator`).
-        *   `ProductCreator` (ou `IProductCreator`).
-        *   `ProductRetriever` (ou `IProductRetriever`).
-        *   `ProductUpdater` (ou `IProductUpdater`).
-        *   `ProductDeleter` (ou `IProductDeleter`).
-    *   Assurez-vous que chaque nouvelle entité a une responsabilité clairement définie et unique.
+4. **OCP**
+   - Ajout de nouvelles règles ou de nouvelles sources (ex: base de données, CSV) possible en ajoutant une nouvelle implémentation de `IProductReader` / `IProductWriter` sans toucher aux services.
 
-#### Étape 3 : Application du Principe Ouvert/Fermé (OCP) et d'Inversion des Dépendances (DIP)
+5. **Nouvelle fonctionnalité**
+   - `ProductSearcher` implémente `search_by_category_and_max_price(category: str, max_price: float) -> List[Product]`.
 
-1.  **Introduction d'Abstractions pour la Persistance :**
-    *   Créez une interface pour le `ProductRepository` (par exemple, `IProductRepository`). Cette interface définira les opérations de persistance (ex: `Add`, `GetById`, `GetAll`, `Update`, `Delete`).
-    *   Modifiez la classe `ProductRepository` existante pour qu'elle implémente cette interface.
-    *   Modifiez les classes qui dépendent de la persistance (vos nouveaux `ProductCreator`, `ProductRetriever`, etc.) pour qu'elles dépendent de l'interface `IProductRepository` et non de l'implémentation concrète. Utilisez l'injection de dépendances (par constructeur, par exemple).
-2.  **Gestion des Types de Produits (OCP) :**
-    *   Si votre système doit gérer différents types de produits (ex: `PhysicalProduct`, `DigitalProduct`) avec des logiques spécifiques, réfléchissez à comment l'ajouter sans modifier les classes existantes.
-    *   Cela pourrait impliquer l'utilisation de stratégies ou de fabriques. Pour ce TP, si ce n'est pas directement applicable, assurez-vous au moins que l'ajout d'une nouvelle *règle de validation* ou d'une nouvelle *source de données* ne casse pas l'OCP.
+## Exécution & tests
 
-#### Étape 4 : Application du Principe de Ségrégation des Interfaces (ISP) et de Substitution de Liskov (LSP) (si pertinent)
+- Installer (si nécessaire): Python 3.9+
+- Lancer les tests unitaires: `pytest -q`
 
-1.  **Examen des Interfaces (ISP) :**
-    *   Examinez les interfaces que vous avez créées (ex: `IProductRepository`, `IProductValidator`). Sont-elles trop "grasses" ?
-    *   Si une interface contient des méthodes que tous ses clients n'utilisent pas, séparez-la en interfaces plus petites et plus spécifiques. Par exemple, `IProductReader` et `IProductWriter` au lieu d'une seule `IProductRepository` pour certains contextes.
-2.  **Vérification de la Substitution de Liskov (LSP) :**
-    *   Si vous avez introduit des hiérarchies de classes (par exemple, différents types de `ProductValidator` ou de `Product`), assurez-vous que les sous-types peuvent être substitués à leurs types de base sans altérer la justesse du programme.
-    *   Bien que moins fréquent de "violer" LSP dans un code initial simple, c'est une bonne pratique de vérifier que vos nouvelles abstractions respectent cette règle.
+## Notes
 
-#### Étape 5 : Implémentation d'une Nouvelle Fonctionnalité
+- Le code est volontairement simple, axé sur la lisibilité et la clarté de l'architecture.
+```
 
-1.  **Ajout d'une Fonctionnalité :** Implémentez la fonctionnalité suivante :
-    *   **Recherche de produits par catégorie et par prix maximum.**
-    *   Cette fonctionnalité doit être implémentée en respectant scrupuleusement les principes SOLID que vous venez d'appliquer. Elle devrait idéalement nécessiter peu ou pas de modifications dans les classes existantes, mais plutôt l'ajout de nouvelles classes ou l'extension d'interfaces existantes.
-2.  **Validation :** Vérifiez que l'ajout de cette fonctionnalité n'a pas réintroduit de violations SOLID et que votre code reste propre et extensible.
+---
 
-### Consignes Générales et Conseils
+## Fichiers Python
 
-*   **Travaillez par petites itérations :** Ne tentez pas de tout refactoriser d'un coup. Concentrez-vous sur un principe ou une responsabilité à la fois.
-*   **Tests :** Même si ce n'est pas l'objectif principal du TP, la mise en place de quelques tests unitaires simples (avant et après refactoring) peut vous aider à valider que votre code fonctionne toujours comme prévu.
-*   **L'IA est un outil, pas un remplaçant :** Si vous utilisez l'IA pour générer des idées, des ébauches de code, ou identifier des problèmes, la compréhension, l'analyse critique et la décision finale vous appartiennent. Ne copiez-collez pas aveuglément.
-*   **Documentation :** Documentez brièvement vos choix de refactoring (par exemple, dans les commentaires de code ou un petit fichier README). Expliquez pourquoi vous avez appliqué tel principe à tel endroit.
-*   **Versionnement :** Utilisez Git. Faites des commits réguliers avec des messages clairs, surtout après chaque étape majeure de refactoring.
-
-### Rendu
-
-Le rendu attendu est un dépôt Git contenant :
-
-1.  Le code refactorisé.
-2.  L'implémentation de la nouvelle fonctionnalité.
-3.  Un fichier `README.md` à la racine du dépôt décrivant :
-    *   Les violations SOLID initiales que vous avez identifiées.
-    *   Les principales modifications apportées pour respecter chaque principe SOLID.
-    *   Comment la nouvelle fonctionnalité a été implémentée en respectant les principes SOLID.
-
-### Évaluation
-
-Votre travail sera évalué sur :
-
-*   La pertinence de l'identification des violations SOLID initiales.
-*   La qualité du refactoring et le respect des principes SOLID.
-*   La propreté et la lisibilité du code final.
-*   La bonne implémentation de la nouvelle fonctionnalité.
-*   La clarté et la complétude de votre documentation dans le `README.md`.
-
-Bon courage !
-
-### Structure du code initial
+### product\_manager/models.py
 
 ```python
-# product_manager/models.py
 from dataclasses import dataclass
 
 @dataclass
 class Product:
-    id: int = None
-    name: str = None
-    description: str = None
-    price: float = None
-    category: str = None
+    id: int | None = None
+    name: str | None = None
+    description: str | None = None
+    price: float | None = None
+    category: str | None = None
+```
 
-# product_manager/repository.py
-from typing import List, Optional
+### product\_manager/interfaces.py
 
-class ProductRepository:
-    """Gère la persistance des produits en mémoire."""
+```python
+from __future__ import annotations
+from typing import Protocol, List, Optional
+from product_manager.models import Product
+
+class IProductReader(Protocol):
+    def get_by_id(self, product_id: int) -> Optional[Product]:
+        ...
+
+    def get_all(self) -> List[Product]:
+        ...
+
+class IProductWriter(Protocol):
+    def add(self, product: Product) -> Product:
+        ...
+
+    def update(self, product: Product) -> bool:
+        ...
+
+    def delete(self, product_id: int) -> bool:
+        ...
+
+
+class IProductRepository(IProductReader, IProductWriter, Protocol):
+    pass
+```
+
+### product\_manager/repository.py
+
+```python
+from typing import Dict, List, Optional
+from product_manager.models import Product
+from product_manager.interfaces import IProductRepository
+
+class ProductRepository(IProductRepository):
+   
     def __init__(self):
-        self._products: dict[int, Product] = {}
+        self._products: Dict[int, Product] = {}
         self._next_id = 1
 
     def add(self, product: Product) -> Product:
@@ -151,50 +156,196 @@ class ProductRepository:
             del self._products[product_id]
             return True
         return False
+```
 
-# product_manager/service.py
+### product\_manager/validators.py
+
+```python
+from abc import ABC, abstractmethod
 from product_manager.models import Product
-from product_manager.repository import ProductRepository
 
-class ProductService:
-    """
-    Service monolithique gérant les opérations CRUD et la validation.
-    """
-    def __init__(self):
-        self.repository = ProductRepository()
+class IProductValidator(ABC):
+    @abstractmethod
+    def validate(self, product: Product) -> None:
+        """Lève une exception si invalide."""
+        pass
 
-    def create_product(self, name: str, description: str, price: float, category: str) -> Product:
-        if not name or not price or price <= 0:
-            raise ValueError("Nom et prix sont requis, et le prix doit être positif.")
+class DefaultProductValidator(IProductValidator):
+    def validate(self, product: Product) -> None:
+        if not product.name or product.name.strip() == "":
+            raise ValueError("Le nom est requis.")
+        if product.price is None or product.price <= 0:
+            raise ValueError("Le prix doit être un nombre positif.")
+```
+
+### product\_manager/services/creator.py
+
+```python
+from product_manager.interfaces import IProductWriter
+from product_manager.models import Product
+from product_manager.validators import IProductValidator
+
+class ProductCreator:
+    def __init__(self, writer: IProductWriter, validator: IProductValidator):
+        self._writer = writer
+        self._validator = validator
+
+    def create(self, name: str, description: str, price: float, category: str) -> Product:
         product = Product(name=name, description=description, price=price, category=category)
-        return self.repository.add(product)
+        self._validator.validate(product)
+        return self._writer.add(product)
+```
 
-    def get_product(self, product_id: int) -> Optional[Product]:
-        return self.repository.get_by_id(product_id)
+### product\_manager/services/retriever.py
 
-    def get_all_products(self) -> List[Product]:
-        return self.repository.get_all()
+```python
+from typing import List, Optional
+from product_manager.interfaces import IProductReader
+from product_manager.models import Product
 
-    def update_product(self, product_id: int, name: str, description: str, price: float, category: str) -> Product:
-        product = self.repository.get_by_id(product_id)
+class ProductRetriever:
+    def __init__(self, reader: IProductReader):
+        self._reader = reader
+
+    def get_by_id(self, product_id: int) -> Optional[Product]:
+        return self._reader.get_by_id(product_id)
+
+    def get_all(self) -> List[Product]:
+        return self._reader.get_all()
+```
+
+### product\_manager/services/updater.py
+
+```python
+from product_manager.interfaces import IProductReader, IProductWriter
+from product_manager.validators import IProductValidator
+from product_manager.models import Product
+
+class ProductUpdater:
+    def __init__(self, reader: IProductReader, writer: IProductWriter, validator: IProductValidator):
+        self._reader = reader
+        self._writer = writer
+        self._validator = validator
+
+    def update(self, product_id: int, name: str, description: str, price: float, category: str) -> Product:
+        product = self._reader.get_by_id(product_id)
         if not product:
             raise ValueError("Produit non trouvé.")
-        if not name or not price or price <= 0:
-            raise ValueError("Nom et prix sont requis, et le prix doit être positif.")
-        
         product.name = name
         product.description = description
         product.price = price
         product.category = category
-        self.repository.update(product)
+        self._validator.validate(product)
+        success = self._writer.update(product)
+        if not success:
+            raise RuntimeError("Échec de la mise à jour.")
         return product
-
-    def delete_product(self, product_id: int) -> bool:
-        return self.repository.delete(product_id)
-
-# Exemple d'utilisation (avant refactoring)
-# service = ProductService()
-# p1 = service.create_product("Laptop", "Puissant", 1200.0, "Électronique")
-# p2 = service.create_product("Ecran", "Elegant", 80.0, "Électronique")
-# print(service.get_all_products())
 ```
+
+### product\_manager/services/deleter.py
+
+```python
+from product_manager.interfaces import IProductWriter
+
+class ProductDeleter:
+    def __init__(self, writer: IProductWriter):
+        self._writer = writer
+
+    def delete(self, product_id: int) -> bool:
+        return self._writer.delete(product_id)
+```
+
+### product\_manager/services/searcher.py
+
+```python
+from typing import List
+from product_manager.interfaces import IProductReader
+from product_manager.models import Product
+
+class ProductSearcher:
+    def __init__(self, reader: IProductReader):
+        self._reader = reader
+
+    def search_by_category_and_max_price(self, category: str | None, max_price: float | None) -> List[Product]:
+        """Retourne les produits correspondant à la catégorie (si fournie) et au prix <= max_price (si fourni)."""
+        products = self._reader.get_all()
+        result = []
+        for p in products:
+            if category and p.category != category:
+                continue
+            if max_price is not None and p.price is not None and p.price > max_price:
+                continue
+            result.append(p)
+        return result
+```
+
+### product\_manager/services/facade.py
+
+```python
+from product_manager.interfaces import IProductRepository
+from product_manager.validators import DefaultProductValidator
+from product_manager.services.creator import ProductCreator
+from product_manager.services.retriever import ProductRetriever
+from product_manager.services.updater import ProductUpdater
+from product_manager.services.deleter import ProductDeleter
+from product_manager.services.searcher import ProductSearcher
+
+class ProductServiceFacade:
+    
+    def __init__(self, repository: IProductRepository):
+        validator = DefaultProductValidator()
+        self.creator = ProductCreator(repository, validator)
+        self.retriever = ProductRetriever(repository)
+        self.updater = ProductUpdater(repository, repository, validator)
+        self.deleter = ProductDeleter(repository)
+        self.searcher = ProductSearcher(repository)
+```
+
+### tests/test\_product\_manager.py
+
+```python
+import pytest
+from product_manager.repository import ProductRepository
+from product_manager.services.facade import ProductServiceFacade
+
+@pytest.fixture
+def service():
+    repo = ProductRepository()
+    return ProductServiceFacade(repo)
+
+def test_create_and_get(service):
+    p = service.creator.create("Laptop", "Puissant", 1200.0, "Électronique")
+    assert p.id is not None
+    got = service.retriever.get_by_id(p.id)
+    assert got is not None
+    assert got.name == "Laptop"
+
+def test_update(service):
+    p = service.creator.create("Ecran", "Elegant", 80.0, "Électronique")
+    updated = service.updater.update(p.id, "Ecran HD", "Très élégant", 90.0, "Électronique")
+    assert updated.name == "Ecran HD"
+
+def test_delete(service):
+    p = service.creator.create("Clavier", "Mécanique", 50.0, "Accessoires")
+    assert service.deleter.delete(p.id) is True
+    assert service.retriever.get_by_id(p.id) is None
+
+def test_search(service):
+    service.creator.create("A", "a", 10.0, "C1")
+    service.creator.create("B", "b", 20.0, "C1")
+    service.creator.create("C", "c", 5.0, "C2")
+    res = service.searcher.search_by_category_and_max_price("C1", 15.0)
+    assert len(res) == 1
+    assert res[0].name == "A"
+```
+
+---
+
+## Remarques finales
+
+* Le code montre comment appliquer les principes SOLID en pratique. Les interfaces sont simples et peuvent être étendues.
+* Pour ajouter une nouvelle source de données (CSV, DB), il suffit d'implémenter `IProductReader`/`IProductWriter` et d'injecter l'implémentation dans la `ProductServiceFacade`.
+
+---
+
+*Fin du document.*
