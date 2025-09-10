@@ -46,21 +46,21 @@ Refactorisation d'un petit système de gestion de produits afin de respecter les
 
 ## Principales modifications
 
-1. **Séparation des responsabilités**
+1. Séparation des responsabilités
    - Création de classes spécialisées: `ProductCreator`, `ProductRetriever`, `ProductUpdater`, `ProductDeleter`, `ProductSearcher`.
    - `ProductValidator` pour la logique de validation.
 
-2. **AbstractionsP**
+2. AbstractionsP
    - Introduction d'interfaces `IProductReader` et `IProductWriter` (regroupées aussi dans `IProductRepository` si besoin).
    - Les services dépendent d'abstractions (interfaces) injectées via constructeur.
 
-3. **ISP**
+3. ISP
    - Les interfaces sont fines : lecture/écriture séparées si un client n'a besoin que d'une partie.
 
-4. **OCP**
+4. OCP
    - Ajout de nouvelles règles ou de nouvelles sources (ex: base de données, CSV) possible en ajoutant une nouvelle implémentation de `IProductReader` / `IProductWriter` sans toucher aux services.
 
-5. **Nouvelle fonctionnalité**
+5. Nouvelle fonctionnalité
    - `ProductSearcher` implémente `search_by_category_and_max_price(category: str, max_price: float) -> List[Product]`.
 
 ## Exécution & tests
