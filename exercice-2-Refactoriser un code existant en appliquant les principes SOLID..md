@@ -347,5 +347,3 @@ def test_search(service):
 * Pour ajouter une nouvelle source de données (CSV, DB), il suffit d'implémenter `IProductReader`/`IProductWriter` et d'injecter l'implémentation dans la `ProductServiceFacade`.
 
 ---
-
-*Fin du document.*
